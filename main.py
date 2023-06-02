@@ -69,7 +69,7 @@ parser.add_argument('--patience', type=int, default=10, help='Patience for early
 parser.add_argument('--dataset', type=str, default='pittsburgh', 
         help='Dataset to use', choices=['pittsburgh'])
 parser.add_argument('--arch', type=str, default='vgg16', 
-        help='basenetwork to use', choices=['vgg16', 'alexnet'])
+        help='basenetwork to use', choices=['vgg16', 'alexnet', 'resnet', 'resnet_full'])
 parser.add_argument('--vladv2', action='store_true', help='Use VLAD v2')
 parser.add_argument('--pooling', type=str, default='netvlad', help='type of pooling to use',
         choices=['netvlad', 'max', 'avg'])
@@ -152,13 +152,6 @@ def get_precision_recall_curve(qFeat, dbFeat, predictions1, predictions5, predic
         y_predicted.append(y_p)
     precision10, recall10, thresholds = precision_recall_curve(y_true, y_predicted)
 
-
-
-    # precision, recall, thresholds = precision_recall_curve(y_true, y_predicted)
-    # precision1, recall1, thresholds = precision_recall_curve(y_true, y_predicted)
-    # precision5, recall5, thresholds = precision_recall_curve(y_true, y_predicted)
-    # precision10, recall10, thresholds = precision_recall_curve(y_true, y_predicted)
-
     # Plot Precision-recall curve
     plt.figure()
     plt.plot(recall, precision, 'b', label='top20')
@@ -174,7 +167,7 @@ def get_precision_recall_curve(qFeat, dbFeat, predictions1, predictions5, predic
     plt.tight_layout()
     plt.savefig(os.path.join("/media/sdc1/wendyu/baseline/pytorch-NetVlad/checkpoint", "precision_recall_top" +"all"+".png"))
     # print('Precision-recall curve is saved at:', os.path.join("/media/sdc1/wendyu/baseline/pytorch-NetVlad/checkpoint", "precision_recall_top" +str(pred.shape[0]) +".png"))
-    print('Precision-recall curve is saved at:', os.path.join("/media/sdc1/wendyu/baseline/pytorch-NetVlad/checkpoint", "precision_recall_top" + "all" +".png"))
+    print('Precision-recall curve is saved at:', os.path.join("/media/sdc1/wendyu/baseline/pytorch-NetVlad/checkpoint", "precision_recall_top_" + "all" +".png"))
 def train(epoch):
     epoch_loss = 0
     startIter = 1 # keep track of batch iter across subsets for logging
@@ -237,6 +230,7 @@ def train(epoch):
 
             input = input.to(device)
             image_encoding = model.encoder(input)
+            # print("encoder_dim: ", image_encoding.shape)
             vlad_encoding = model.pool(image_encoding) 
 
             vladQ, vladP, vladN = torch.split(vlad_encoding, [B, B, nNeg])
@@ -300,7 +294,7 @@ def test(eval_set, epoch=0, write_tboard=False):
             input = input.to(device)
             image_encoding = model.encoder(input)
             # print("model.encoder: ", model.encoder)
-            # print("image_encoding.shape: ", image_encoding.shape) (24, 512, 2, 2)
+            # print("image_encoding.shape: ", image_encoding.shape) # (24, 512, 2, 2)
             vlad_encoding = model.pool(image_encoding) 
 
             dbFeat[indices.detach().numpy(), :] = vlad_encoding.detach().cpu().numpy()
@@ -349,13 +343,16 @@ def test(eval_set, epoch=0, write_tboard=False):
     return recalls
 
 def get_clusters(cluster_set):
-    nDescriptors = 50000 #nexttime
+    # nDescriptors = 50000 #nexttime
     #/25 = 2000
-    # nDescriptors = 6000 # total descriptors
-    # 50000 * 3/25
-    nPerImage = 100 #nexttime
-    # 4
+    # nDescriptors = 2000 (40, 40)
+    # nDescriptors = 6000 # total descriptors # 50000 * 3/25
+
+    nDescriptors = 500 # 50000/100 (40, 40) alexnet
+    # nPerImage = 100 #nexttime
+    # nPerImage = 4
     # nPerImage = 12 # down sample to (48, 64) # number of descriptors per image
+    nPerImage = 1 # (40, 40) alexnet
     nIm = ceil(nDescriptors/nPerImage) # take 500 images
 
     sampler = SubsetRandomSampler(np.random.choice(len(cluster_set), nIm, replace=False))
@@ -522,6 +519,8 @@ if __name__ == "__main__":
     elif opt.arch.lower() == 'vgg16':
         encoder_dim = 512
         encoder = models.vgg16(pretrained=pretrained)
+        # print("vgg16: ", encoder)
+
         # capture only feature part and remove last relu and maxpool
         layers = list(encoder.features.children())[:-2]
 
@@ -530,6 +529,40 @@ if __name__ == "__main__":
             for l in layers[:-5]: 
                 for p in l.parameters():
                     p.requires_grad = False
+
+    elif opt.arch.lower() == 'resnet':
+        encoder_dim = 512
+        encoder = models.resnet50(pretrained=pretrained)
+        print("resnet_encoder: ", encoder)
+        # print("resnet_encoder.keys(): ", encoder.keys())
+        # capture only feature part and remove last relu and maxpool
+        layers = [encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool] + list(encoder.layer1) + list(encoder.layer2)
+        print("layers = ", layers)
+
+        if pretrained:
+            # if using pretrained then only train conv5_1, conv5_2, and conv5_3
+            for l in layers[:-5]: 
+                for p in l.parameters():
+                    p.requires_grad = False
+
+    elif opt.arch.lower() == 'resnet_full':
+        encoder_dim = 512
+        encoder = models.resnet50(pretrained=pretrained)
+        print("resnet_encoder: ", encoder)
+        # print("resnet_encoder.keys(): ", encoder.keys())ß
+        # capture only feature part and remove last relu and maxpool
+        conv_1_1 = nn.Conv2d(512 * 4, 512, (1, 1))
+        # layers = [encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool] + list(encoder.layer1) + list(encoder.layer2)
+        layers = [encoder.conv1, encoder.bn1, encoder.relu, encoder.maxpool] + list(encoder.layer1) + list(encoder.layer2) + list(encoder.layer3) + list(encoder.layer4) + [conv_1_1]
+
+        print("layers = ", layers)
+
+        if pretrained:
+            # if using pretrained then only train conv5_1, conv5_2, and conv5_3
+            for l in layers[:-5]: 
+                for p in l.parameters():
+                    p.requires_grad = False
+
 
     if opt.mode.lower() == 'cluster' and not opt.vladv2:
         layers.append(L2Norm())
@@ -599,12 +632,12 @@ if __name__ == "__main__":
             resume_ckpt = join(opt.resume, 'checkpoints', 'checkpoint.pth.tar')
         elif opt.ckpt.lower() == 'best':
             resume_ckpt = join(opt.resume, 'checkpoints', 'model_best.pth.tar')
-
+        print("resume checkpt: ", resume_ckpt)
         if isfile(resume_ckpt):
             print("=> loading checkpoint '{}'".format(resume_ckpt))
             checkpoint = torch.load(resume_ckpt, map_location=lambda storage, loc: storage)
-            opt.start_epoch = checkpoint['epoch']
-            best_metric = checkpoint['best_score']
+            # opt.start_epoch = checkpoint['epoch']
+            # best_metric = checkpoint['best_score']
             model.load_state_dict(checkpoint['state_dict'])
             model = model.to(device)
             if opt.mode == 'train':

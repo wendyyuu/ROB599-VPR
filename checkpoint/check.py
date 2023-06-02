@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 
 
-best_checkpoint = torch.load('/media/sdc1/wendyu/baseline/pytorch-NetVlad/Mar24_13-36-22_vgg16_netvlad/checkpoints/model_best.pth.tar')
+best_checkpoint = torch.load('/media/sdc1/wendyu/baseline/pytorch-NetVlad/Apr21_00-35-12_resnet_full_netvlad/checkpoints/checkpoint.pth.tar')
 # model_best = torch.load('model_best.pth.tar')
 # for key in checkpoint['recalls']:
 #     # print("checkpoint's recalss = ", checkpoint['recalls'])
@@ -30,7 +30,7 @@ print("model_best's recalls = ", best_checkpoint['recalls'])
 
 
 
-checkpoint = torch.load('/media/sdc1/wendyu/baseline/pytorch-NetVlad/Mar24_13-36-22_vgg16_netvlad/checkpoints/checkpoint.pth.tar')
+checkpoint = torch.load('/media/sdc1/wendyu/baseline/pytorch-NetVlad/Apr21_00-35-12_resnet_full_netvlad/checkpoints/checkpoint.pth.tar')
 print("checkpoint's epoch = ", checkpoint['epoch'])
 print("checkpoint's recall_history = ", checkpoint['recall_history'])
 

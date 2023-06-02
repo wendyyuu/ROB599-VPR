@@ -123,15 +123,18 @@ class WholeDatasetFromStruct(data.Dataset):
             img = self.input_transform(img) # (3, 480, 640)
         # img.thumbnail(40, 40, resample=Image.Resampling.BILINEAR)
         # print("imag.shape: ", img.shape)
-        img = img.unsqueeze(0)
-        # img = F.interpolate(img, size = [48, 64], mode = 'bilinear')
-        img = F.interpolate(img, size = [160, 160], mode = 'bilinear')
-        img = img.squeeze(0)
+        img = img.unsqueeze(0)    # add a dimention at first, because without batch dimention (needed by interpolate)
+        # The input dimensions are interpreted in the form: mini-batch x channels x [optional depth] x [optional height] x width.
+        # img = F.interpolate(img, size = [40, 40], mode = 'bilinear')
+        img = F.interpolate(img, size = [48, 64], mode = 'bilinear')
+        # img = F.interpolate(img, size = [160, 160], mode = 'bilinear')
+        img = img.squeeze(0)      # remove first dimention
         # print("after_imag.shape: ", img.shape)
         
         return img, index
 
     def __len__(self):
+        # print("img_number: ", len(self.images))
         return len(self.images)
 
     def getPositives(self):
